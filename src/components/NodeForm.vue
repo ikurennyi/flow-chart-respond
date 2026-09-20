@@ -19,6 +19,10 @@ const props = defineProps({
     type: [String, Number],
     default: null,
   },
+  insertContext: {
+    type: Object,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['cancel', 'deleted', 'created'])
@@ -119,10 +123,36 @@ watch(
   },
   { immediate: true },
 )
+
+const titleForNodeId = (id) => titleForNode(flowsStore.getNodeById(id)) || String(id)
+
+const insertContextTitles = computed(() => {
+  const ctx = props.insertContext
+  if (!ctx) return { parent: '', child: '', branch: '' }
+  return {
+    parent: titleForNodeId(ctx.parentId),
+    child: ctx.childId ? titleForNodeId(ctx.childId) : '',
+    branch: ctx.connectorId ? titleForNodeId(ctx.connectorId) : '',
+  }
+})
 </script>
 
 <template>
   <div class="node-form">
+    <p v-if="isCreate && insertContext" class="node-form__insert-hint">
+      <template v-if="insertContext.terminal || !insertContext.childId">
+        Add after node <strong>{{ insertContextTitles.parent }}</strong>
+      </template>
+      <template v-else>
+        Insert between node <strong>{{ insertContextTitles.parent }}</strong> and
+        <strong>{{ insertContextTitles.child }}</strong>
+        <template v-if="insertContext.connectorId">
+          (branch <strong>{{ insertContextTitles.branch }}</strong
+          >)
+        </template>
+      </template>
+    </p>
+
     <el-form ref="form-ref" :model="draft" label-width="auto" label-position="top">
       <el-form-item label="Title" prop="title">
         <el-input v-model="draft.title" ref="title-ref" @blur="onTitleBlur" />
@@ -148,3 +178,9 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+strong {
+  font-weight: 600;
+}
+</style>

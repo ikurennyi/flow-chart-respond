@@ -2,6 +2,7 @@ import { MarkerType } from '@vue-flow/core'
 
 const NODE_SIZE = { width: 240, height: 84 }
 const GAP = { x: 64, y: 64 }
+const TERMINAL_STUB_Y = GAP.y
 
 export const NODE_META = {
   trigger: { icon: 'Bell', label: 'Trigger' },
@@ -11,6 +12,8 @@ export const NODE_META = {
 }
 
 const FALLBACK_META = { icon: 'QuestionFilled', label: 'Node' }
+
+const DEFAULT_EDGE_STROKE = '#c0c4cc'
 
 const EDGE_COLORS = {
   success: {
@@ -97,6 +100,35 @@ const depthOf = (node, byId) => {
 export const toVueFlowGraph = (rawNodes) => {
   const byId = new Map(rawNodes.map((node) => [String(node.id), node]))
 
+  // Effective parent: skip connectors (they are edges, not nodes)
+  const effectiveParentId = (node) => {
+    let current = node
+    const seen = new Set([String(node.id)])
+
+    while (current.parentId !== -1) {
+      const parent = byId.get(String(current.parentId))
+      if (!parent || seen.has(String(parent.id))) return null
+      seen.add(String(parent.id))
+      if (!isConnector(parent)) return String(parent.id)
+      current = parent
+    }
+
+    return null // root of the tree
+  }
+
+  const childrenMap = new Map() // id -> [id children] (without connectors)
+  const roots = []
+  for (const node of rawNodes) {
+    if (isConnector(node)) continue
+    const parentId = effectiveParentId(node)
+    if (parentId === null) {
+      roots.push(String(node.id))
+      continue
+    }
+    if (!childrenMap.has(parentId)) childrenMap.set(parentId, [])
+    childrenMap.get(parentId).push(String(node.id))
+  }
+
   const columns = new Map()
   for (const node of rawNodes) {
     if (isConnector(node)) continue
@@ -154,13 +186,18 @@ export const toVueFlowGraph = (rawNodes) => {
         id: `${String(root.id)}->${String(node.id)}`,
         source: String(root.id),
         target: String(node.id),
-        type: 'step',
+        type: 'flow-edge',
         label: parent.name,
         markerEnd: MarkerType.ArrowClosed,
         style: { stroke: edgeLabelStyles.bg.stroke },
         labelStyle: edgeLabelStyles.label,
         labelBgStyle: edgeLabelStyles.bg,
         labelBgPadding: [6, 4],
+        data: {
+          parentId: String(root.id),
+          childId: String(node.id),
+          connectorId: String(parent.id),
+        },
       })
       continue
     }
@@ -169,8 +206,49 @@ export const toVueFlowGraph = (rawNodes) => {
       id: `${String(parent.id)}->${String(node.id)}`,
       source: String(parent.id),
       target: String(node.id),
-      type: 'step',
+      type: 'flow-edge',
       markerEnd: MarkerType.ArrowClosed,
+      style: { stroke: DEFAULT_EDGE_STROKE },
+      data: {
+        parentId: String(parent.id),
+        childId: String(node.id),
+      },
+    })
+  }
+
+  for (const node of rawNodes) {
+    if (isConnector(node)) continue
+
+    const leafId = String(node.id)
+    const kids = childrenMap.get(leafId) ?? []
+    if (kids.length > 0) continue
+
+    const terminalId = `terminal-${leafId}`
+
+    nodes.push({
+      id: terminalId,
+      type: 'flow-terminal-anchor',
+      parentNode: leafId,
+      position: {
+        x: NODE_SIZE.width / 2 - 0.5,
+        y: NODE_SIZE.height + TERMINAL_STUB_Y,
+      },
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      data: { parentId: leafId },
+    })
+
+    edges.push({
+      id: `${leafId}->${terminalId}`,
+      source: leafId,
+      target: terminalId,
+      type: 'flow-edge',
+      style: { stroke: DEFAULT_EDGE_STROKE },
+      data: {
+        terminal: true,
+        parentId: leafId,
+      },
     })
   }
 

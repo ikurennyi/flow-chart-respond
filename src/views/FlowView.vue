@@ -7,6 +7,8 @@ import { VueFlow } from '@vue-flow/core'
 
 import { useFlowStore } from '@/stores/flow'
 import FlowNode from '@/components/flow-diagram/FlowNode.vue'
+import FlowEdge from '@/components/flow-diagram/FlowEdge.vue'
+import FlowTerminalAnchor from '@/components/flow-diagram/FlowTerminalAnchor.vue'
 import NodeForm from '@/components/NodeForm.vue'
 
 import { ROUTES } from '../router/routes'
@@ -14,21 +16,30 @@ import { ROUTES } from '../router/routes'
 const router = useRouter()
 const route = useRoute()
 const flowsStore = useFlowStore()
-const { isNewNodeFormVisible, selectedNodeId, graph } = storeToRefs(flowsStore)
+const { insertContext, isNewNodeFormVisible, selectedNodeId, graph } = storeToRefs(flowsStore)
 
 const drawerTitle = ref('Add New Node')
 const isDrawerVisible = ref(false)
+
 const onDrawerClose = () => {
   if (isNewNodeFormVisible.value) {
     flowsStore.closeAddNodeForm()
   }
   goToFlowsRoot()
 }
+
 const selectItemInDrawer = () => nodeId.value && (isDrawerVisible.value = true)
 
 const nodeId = ref(route.params.nodeId)
-const nodeTypes = { 'flow-node': markRaw(FlowNode) }
+
+const nodeTypes = {
+  'flow-node': markRaw(FlowNode),
+  'flow-terminal-anchor': markRaw(FlowTerminalAnchor),
+}
+const edgeTypes = { 'flow-edge': markRaw(FlowEdge) }
+
 const onNodeClick = (event) => {
+  if (event.node.type === 'flow-terminal-anchor') return
   router.push({ name: ROUTES.FLOW.name, params: { nodeId: event.node.id } })
 }
 
@@ -89,6 +100,7 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
         :nodes="graph.nodes"
         :edges="graph.edges"
         :node-types="nodeTypes"
+        :edge-types="edgeTypes"
         @node-click="onNodeClick"
         fit-view
       />
@@ -100,6 +112,7 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
         :key="nodeFormKey"
         :mode="nodeFormMode"
         :node-id="nodeFormMode === 'edit' ? selectedNodeId : null"
+        :insert-context="nodeFormMode === 'create' ? insertContext : null"
         @created="onNodeCreated"
         @deleted="onNodeDeleted"
       />
