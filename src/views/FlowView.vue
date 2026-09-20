@@ -1,10 +1,12 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, markRaw } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Plus } from '@element-plus/icons-vue'
+import { VueFlow } from '@vue-flow/core'
 
 import { useFlowStore } from '@/stores/flow'
+import FlowNode from '@/components/flow-diagram/FlowNode.vue'
 import NodeForm from '@/components/NodeForm.vue'
 
 import { ROUTES } from '../router/routes'
@@ -12,7 +14,7 @@ import { ROUTES } from '../router/routes'
 const router = useRouter()
 const route = useRoute()
 const flowsStore = useFlowStore()
-const { isNewNodeFormVisible, selectedNodeId } = storeToRefs(flowsStore)
+const { isNewNodeFormVisible, selectedNodeId, graph } = storeToRefs(flowsStore)
 
 const drawerTitle = ref('Add New Node')
 const isDrawerVisible = ref(false)
@@ -22,6 +24,28 @@ const onDrawerClose = () => {
   }
   goToFlowsRoot()
 }
+const selectItemInDrawer = () => nodeId.value && (isDrawerVisible.value = true)
+
+const nodeId = ref(route.params.nodeId)
+const nodeTypes = { 'flow-node': markRaw(FlowNode) }
+const onNodeClick = (event) => {
+  router.push({ name: ROUTES.FLOW.name, params: { nodeId: event.node.id } })
+}
+
+watch(
+  () => route.params,
+  () => {
+    if (flowsStore.isNodeExist(route.params.nodeId)) {
+      nodeId.value = route.params.nodeId
+
+      flowsStore.setSelectedNodeId(route.params.nodeId)
+      selectItemInDrawer()
+    }
+  },
+  {
+    immediate: true,
+  },
+)
 
 watch(isNewNodeFormVisible, (visible) => {
   if (visible) {
@@ -60,18 +84,35 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
       <el-button type="primary" :icon="Plus" @click="addNode">Create New Node</el-button>
     </div>
 
-    {{ flowsStore.nodes }}
-
-    <div class="flow-canvas">Canvas will be here</div>
+    <div class="flow-canvas">
+      <VueFlow
+        :nodes="graph.nodes"
+        :edges="graph.edges"
+        :node-types="nodeTypes"
+        @node-click="onNodeClick"
+        fit-view
+      />
+    </div>
 
     <el-drawer v-model="isDrawerVisible" :title="drawerTitle" size="420px" @close="onDrawerClose">
       <NodeForm
         v-if="showNodeForm"
         :key="nodeFormKey"
         :mode="nodeFormMode"
+        :node-id="nodeFormMode === 'edit' ? selectedNodeId : null"
         @created="onNodeCreated"
         @deleted="onNodeDeleted"
       />
     </el-drawer>
   </div>
 </template>
+
+<style scoped>
+.flow-canvas {
+  width: 100%;
+  height: 65vh;
+  margin-top: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+}
+</style>

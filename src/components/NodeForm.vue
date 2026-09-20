@@ -1,8 +1,10 @@
 <script setup>
-import { computed, useTemplateRef, reactive } from 'vue'
+import { computed, useTemplateRef, reactive, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 
 import { useFlowStore } from '@/stores/flow'
+import { titleForNode } from '@/shared/flow/graph'
+import { cloneNodeData } from '@/shared/flow/nodeData'
 
 import { NODE_FORM_PANELS, formTypeKeyForNode } from '@/components/nodeForms'
 import { NODE_TYPES } from '@/shared/constants'
@@ -12,6 +14,10 @@ const props = defineProps({
     type: String,
     default: 'create',
     validator: (v) => v === 'create' || v === 'edit',
+  },
+  nodeId: {
+    type: [String, Number],
+    default: null,
   },
 })
 
@@ -80,6 +86,39 @@ const deleteNode = async () => {
     // cancelled, do nothing
   }
 }
+
+const resetCreateDraft = () => {
+  draft.title = ''
+  draft.nodeType = ''
+  Object.keys(typeData).forEach((k) => delete typeData[k])
+}
+
+watch(
+  () => [isCreate.value],
+  ([create]) => {
+    if (create) resetCreateDraft()
+  },
+  { immediate: true },
+)
+
+const syncTypeDataFromNode = (node) => {
+  const data = cloneNodeData(node?.data)
+  Object.keys(typeData).forEach((k) => delete typeData[k])
+  Object.assign(typeData, data)
+}
+
+watch(
+  () => (isEdit.value ? String(props.nodeId) : null),
+  (id) => {
+    if (!id) return
+    const node = flowsStore.getNodeById(id)
+    if (!node) return
+    draft.title = titleForNode(node)
+    draft.nodeType = formTypeKeyForNode(node) ?? ''
+    syncTypeDataFromNode(node)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
