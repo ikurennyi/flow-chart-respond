@@ -11,6 +11,7 @@
    2. [CLI](#subtitle42)
 4. [List of Used Technologies](#title5)
 5. [Possible Improvements](#title6)
+6. [Notes](#otherNotes)
 
 ## <a id="title2">Application Notes</a>
 
@@ -70,7 +71,7 @@
 11. Undo/Redo
 12. Encapsulate logic in Composables
 
-# NOTES:
+## <a id="otherNotes">Other Notes</a>
 
 - Description field in New Node form is text field by requirements
 - Use JavaScript by the assignment requirements (not TypeScript)
