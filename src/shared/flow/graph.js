@@ -1,9 +1,9 @@
 import { MarkerType } from '@vue-flow/core'
 
-import { isConnector } from '@/shared/flow/utils'
+import { isConnector } from '@/shared/flow/utils.js'
 
 const NODE_SIZE = { width: 240, height: 84 }
-const GAP = { x: 64, y: 64 }
+const GAP = { x: 64, y: 48 }
 const TERMINAL_STUB_Y = GAP.y
 
 export const NODE_META = {
@@ -129,43 +129,52 @@ export const toVueFlowGraph = (rawNodes) => {
     childrenMap.get(parentId).push(String(node.id))
   }
 
-  const columns = new Map()
-  for (const node of rawNodes) {
-    if (isConnector(node)) continue
+  // Tree layout: leaves get slots from left to right, internal node —
+  // by the center of their children. For one child "center" = its x, so the child
+  // stands directly under the parent.
+  const slot = new Map() // id -> slot (can be fractional)
+  let nextSlot = 0
 
-    const depth = depthOf(node, byId)
-    if (!columns.has(depth)) columns.set(depth, [])
-    columns.get(depth).push(node)
+  const assignSlots = (id, visiting) => {
+    if (slot.has(id)) return slot.get(id)
+    if (visiting.has(id)) return 0 // guard from cycles
+
+    visiting.add(id)
+    const kids = childrenMap.get(id) ?? []
+
+    let value
+    if (!kids.length) {
+      value = nextSlot++ // leaf — next slot
+    } else {
+      const kidSlots = kids.map((kid) => assignSlots(kid, visiting))
+      value = kidSlots.reduce((sum, s) => sum + s, 0) / kidSlots.length // center of children
+    }
+
+    slot.set(id, value)
+    return value
   }
 
-  // Row width = number of nodes in it; center each row relative to the widest row
-  const rowWidths = [...columns.values()].map(
-    (row) => Math.max(0, row.length - 1) * (NODE_SIZE.width + GAP.x),
-  )
-  const maxRowWidth = Math.max(0, ...rowWidths)
+  for (const root of roots) assignSlots(root, new Set())
 
   const nodes = []
-  for (const [depth, column] of columns) {
-    const rowWidth = Math.max(0, column.length - 1) * (NODE_SIZE.width + GAP.x)
-    const offsetX = 50 + (maxRowWidth - rowWidth) / 2
-    const offsetY = 30
+  for (const node of rawNodes) {
+    if (isConnector(node)) continue // connectors are rendered as labeled edges
 
-    column.forEach((node, index) => {
-      const meta = metaFor(node)
+    const id = String(node.id)
+    const meta = metaFor(node)
 
-      nodes.push({
-        id: String(node.id),
-        type: 'flow-node',
-        position: {
-          x: offsetX + index * (NODE_SIZE.width + GAP.x),
-          y: offsetY + depth * (NODE_SIZE.height + GAP.y),
-        },
-        data: {
-          icon: meta.icon,
-          title: titleForNode(node),
-          description: describe(node),
-        },
-      })
+    nodes.push({
+      id, // vue-flow requires string ids (in payload there is a numerical 1)
+      type: 'flow-node',
+      position: {
+        x: 50 + (slot.get(id) ?? 0) * (NODE_SIZE.width + GAP.x),
+        y: 30 + depthOf(node, byId) * (NODE_SIZE.height + GAP.y),
+      },
+      data: {
+        icon: meta.icon,
+        title: titleForNode(node),
+        description: describe(node),
+      },
     })
   }
 

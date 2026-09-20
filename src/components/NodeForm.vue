@@ -87,6 +87,18 @@ const resetCreateDraft = () => {
   Object.keys(typeData).forEach((k) => delete typeData[k])
 }
 
+const titleForNodeId = (id) => titleForNode(flowsStore.getNodeById(id)) || String(id)
+
+const insertContextTitles = computed(() => {
+  const ctx = props.insertContext
+  if (!ctx) return { parent: '', child: '', branch: '' }
+  return {
+    parent: titleForNodeId(ctx.parentId),
+    child: ctx.childId ? titleForNodeId(ctx.childId) : '',
+    branch: ctx.connectorId ? titleForNodeId(ctx.connectorId) : '',
+  }
+})
+
 watch(
   () => [isCreate.value, props.insertContext],
   ([create]) => {
@@ -201,13 +213,14 @@ onMounted(() => {
   <div class="node-form">
     <p v-if="isCreate && insertContext" class="node-form__insert-hint">
       <template v-if="insertContext.terminal || !insertContext.childId">
-        Add after node <strong>{{ insertContext.parentId }}</strong>
+        Add after node <strong>{{ insertContextTitles.parent }}</strong>
       </template>
       <template v-else>
-        Insert between node <strong>{{ insertContext.parentId }}</strong> and
-        <strong>{{ insertContext.childId }}</strong>
+        Insert between node <strong>{{ insertContextTitles.parent }}</strong> and
+        <strong>{{ insertContextTitles.child }}</strong>
         <template v-if="insertContext.connectorId">
-          (branch {{ insertContext.connectorId }})
+          (branch <strong>{{ insertContextTitles.branch }}</strong
+          >)
         </template>
       </template>
     </p>
@@ -243,3 +256,9 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+strong {
+  font-weight: 600;
+}
+</style>

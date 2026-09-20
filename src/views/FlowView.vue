@@ -1,24 +1,27 @@
 <script setup>
-import { ref, watch, computed, markRaw } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Plus } from '@element-plus/icons-vue'
-import { VueFlow } from '@vue-flow/core'
 
 import { useFlowStore } from '@/stores/flow'
-import FlowNode from '@/components/flow-diagram/FlowNode.vue'
-import FlowEdge from '@/components/flow-diagram/FlowEdge.vue'
-import FlowTerminalAnchor from '@/components/flow-diagram/FlowTerminalAnchor.vue'
+import FlowCanvas from '@/components/flow-diagram/FlowCanvas.vue'
 import NodeForm from '@/components/NodeForm.vue'
+import { drawerTitleForNode } from '@/shared/flow/nodeFormPanels.js'
 
 import { ROUTES } from '../router/routes'
 
 const router = useRouter()
 const route = useRoute()
 const flowsStore = useFlowStore()
-const { insertContext, isNewNodeFormVisible, selectedNodeId, graph } = storeToRefs(flowsStore)
+const { insertContext, isNewNodeFormVisible, selectedNodeId, isFlowLoading, flowError, nodes } =
+  storeToRefs(flowsStore)
 
-const drawerTitle = ref('Add New Node')
+const drawerTitle = computed(() => {
+  if (isNewNodeFormVisible.value) return 'Add New Node'
+  const node = flowsStore.getNodeById(selectedNodeId.value)
+  return drawerTitleForNode(node)
+})
 const isDrawerVisible = ref(false)
 
 const onDrawerClose = () => {
@@ -28,34 +31,38 @@ const onDrawerClose = () => {
   goToFlowsRoot()
 }
 
-const selectItemInDrawer = () => nodeId.value && (isDrawerVisible.value = true)
-
-const nodeId = ref(route.params.nodeId)
-
-const nodeTypes = {
-  'flow-node': markRaw(FlowNode),
-  'flow-terminal-anchor': markRaw(FlowTerminalAnchor),
-}
-const edgeTypes = { 'flow-edge': markRaw(FlowEdge) }
-
 const onNodeClick = (event) => {
   if (event.node.type === 'flow-terminal-anchor') return
   router.push({ name: ROUTES.FLOW.name, params: { nodeId: event.node.id } })
 }
 
+const focusNodeId = computed(() => {
+  if (isFlowLoading.value) return null
+  const id = route.params.nodeId ?? selectedNodeId.value
+  if (id == null || id === '') return null
+  return flowsStore.isNodeExist(id) ? String(id) : null
+})
+
+const syncDrawerFromRoute = () => {
+  const id = route.params.nodeId
+
+  if (isFlowLoading.value) return
+
+  if (flowsStore.isNodeExist(id)) {
+    flowsStore.setSelectedNodeId(id)
+    isDrawerVisible.value = true
+    return
+  }
+
+  flowsStore.setSelectedNodeId(null)
+  if (!isNewNodeFormVisible.value) {
+    isDrawerVisible.value = false
+  }
+}
+
 watch(
-  () => route.params.nodeId,
-  (id) => {
-    if (flowsStore.isNodeExist(id)) {
-      flowsStore.setSelectedNodeId(id)
-      isDrawerVisible.value = true
-    } else {
-      flowsStore.setSelectedNodeId(null)
-      if (!isNewNodeFormVisible.value) {
-        isDrawerVisible.value = false
-      }
-    }
-  },
+  () => [route.params.nodeId, isFlowLoading.value, nodes.value.length],
+  () => syncDrawerFromRoute(),
   { immediate: true },
 )
 
@@ -97,13 +104,20 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
     </div>
 
     <div class="flow-canvas">
-      <VueFlow
-        :nodes="graph.nodes"
-        :edges="graph.edges"
-        :node-types="nodeTypes"
-        :edge-types="edgeTypes"
+      <el-skeleton v-if="isFlowLoading" animated :rows="6" class="flow-canvas__skeleton" />
+      <el-alert
+        v-else-if="flowError"
+        type="error"
+        title="Failed to load flow"
+        :description="flowError.message"
+        show-icon
+      />
+      <FlowCanvas
+        v-else
+        :nodes="flowsStore.graph.nodes"
+        :edges="flowsStore.graph.edges"
+        :focus-node-id="focusNodeId"
         @node-click="onNodeClick"
-        fit-view
       />
     </div>
 
@@ -128,5 +142,9 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
   margin-top: 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
+}
+
+.flow-canvas__skeleton {
+  padding: 16px;
 }
 </style>

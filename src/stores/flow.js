@@ -1,19 +1,44 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 
 import seedNodes from '@/shared/seed/flow-nodes.json'
 import { toVueFlowGraph } from '@/shared/flow/graph'
 import { findNodeById, patchNodeInList, collectDescendantIds } from '@/shared/flow/utils'
 import { applyInsertNode } from '@/shared/flow/insertNode'
+import { fetchFlowNodes, saveFlowNodes } from '@/shared/query/flowNodesApi.js'
+import { flowNodesQueryKey } from '@/shared/query/keys.js'
 
 export const useFlowStore = defineStore('flow', () => {
-  const nodes = ref(seedNodes)
   const selectedNodeId = ref(null)
   const insertContext = ref(null)
+  const isNewNodeFormVisible = ref(false)
+
+  const queryClient = useQueryClient()
+
+  const flowNodesQuery = useQuery({
+    queryKey: flowNodesQueryKey,
+    queryFn: fetchFlowNodes,
+  })
+
+  const isFlowLoading = computed(() => flowNodesQuery.isPending.value)
+  const flowError = computed(() => flowNodesQuery.error.value)
+
+  const saveNodesMutation = useMutation({
+    mutationFn: saveFlowNodes,
+    onSuccess: (next) => {
+      queryClient.setQueryData(flowNodesQueryKey, next)
+    },
+  })
+
+  const nodes = computed(() => flowNodesQuery.data.value ?? seedNodes)
+
+  const commitNodes = (next) => {
+    queryClient.setQueryData(flowNodesQueryKey, next)
+    saveNodesMutation.mutate(next)
+  }
 
   const graph = computed(() => toVueFlowGraph(nodes.value))
-
-  const isNewNodeFormVisible = ref(false)
 
   const getNodeById = (nodeId) => findNodeById(nodes.value, nodeId)
 
@@ -25,21 +50,15 @@ export const useFlowStore = defineStore('flow', () => {
       { title, formType, data },
       context ?? insertContext.value,
     )
-    nodes.value = next
+    commitNodes(next)
     closeAddNodeForm()
     return newNodeId
   }
-
   const updateNode = (nodeId, patch) => {
-    const index = nodes.value.findIndex((node) => String(node.id) === String(nodeId))
-    if (index === -1) return
-
-    const current = nodes.value[index]
-    const next = { ...current, ...patch }
-    if (patch.data !== undefined) {
-      next.data = { ...(current.data ?? {}), ...patch.data }
-    }
-    nodes.value[index] = next
+    const current = nodes.value
+    const next = patchNodeInList(current, nodeId, patch)
+    if (next === current) return
+    commitNodes(next)
   }
 
   const deleteNode = (nodeId) => {
@@ -47,7 +66,8 @@ export const useFlowStore = defineStore('flow', () => {
     if (!target || target.type === 'trigger') return
 
     const toRemove = collectDescendantIds(nodes.value, nodeId)
-    nodes.value = nodes.value.filter((node) => !toRemove.has(String(node.id)))
+    const next = nodes.value.filter((node) => !toRemove.has(String(node.id)))
+    commitNodes(next)
 
     if (String(selectedNodeId.value) === String(nodeId)) {
       selectedNodeId.value = null
@@ -78,6 +98,8 @@ export const useFlowStore = defineStore('flow', () => {
   return {
     nodes,
     graph,
+    isFlowLoading,
+    flowError,
     insertContext,
     selectedNodeId,
     isNewNodeFormVisible,
