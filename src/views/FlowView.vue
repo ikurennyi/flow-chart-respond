@@ -6,6 +6,7 @@ import { Plus } from '@element-plus/icons-vue'
 
 import { useFlowStore } from '@/stores/flow'
 import FlowCanvas from '@/components/flow-diagram/FlowCanvas.vue'
+import FlowHistoryPanel from '@/components/FlowHistoryPanel.vue'
 import NodeForm from '@/components/NodeForm.vue'
 import { drawerTitleForNode } from '@/shared/flow/nodeFormPanels.js'
 
@@ -34,6 +35,11 @@ const onDrawerClose = () => {
 const onNodeClick = (event) => {
   if (event.node.type === 'flow-terminal-anchor') return
   router.push({ name: ROUTES.FLOW.name, params: { nodeId: event.node.id } })
+}
+
+const onNodeDragStop = ({ node }) => {
+  if (node.type === 'flow-terminal-anchor') return
+  flowsStore.updateNodeLayout(node.id, node.position)
 }
 
 const focusNodeId = computed(() => {
@@ -100,7 +106,10 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
     <div class="flow-content">
       <h1>Flow View</h1>
 
-      <el-button type="primary" :icon="Plus" @click="addNode">Create New Node</el-button>
+      <div class="flow-content__toolbar">
+        <el-button type="primary" :icon="Plus" @click="addNode">Create New Node</el-button>
+        <FlowHistoryPanel v-if="!isFlowLoading && !flowError" />
+      </div>
     </div>
 
     <div class="flow-canvas">
@@ -118,6 +127,7 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
         :edges="flowsStore.graph.edges"
         :focus-node-id="focusNodeId"
         @node-click="onNodeClick"
+        @node-drag-stop="onNodeDragStop"
       />
     </div>
 
@@ -146,5 +156,11 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
 
 .flow-canvas__skeleton {
   padding: 16px;
+}
+
+.flow-content__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 </style>

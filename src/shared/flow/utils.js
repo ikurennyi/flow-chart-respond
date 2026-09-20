@@ -1,3 +1,10 @@
+import { toRaw } from 'vue'
+
+/** Deep clone JSON-serializable values; safe for Vue reactive proxies. */
+export function clonePlain(value) {
+  return JSON.parse(JSON.stringify(toRaw(value)))
+}
+
 export function isConnector(node) {
   return node?.type === 'dateTimeConnector'
 }

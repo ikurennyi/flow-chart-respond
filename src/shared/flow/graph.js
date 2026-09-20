@@ -163,13 +163,20 @@ export const toVueFlowGraph = (rawNodes) => {
     const id = String(node.id)
     const meta = metaFor(node)
 
+    const autoPosition = {
+      x: 50 + (slot.get(id) ?? 0) * (NODE_SIZE.width + GAP.x),
+      y: 30 + depthOf(node, byId) * (NODE_SIZE.height + GAP.y),
+    }
+    const layout = node.layout
+    const position =
+      layout != null && typeof layout.x === 'number' && typeof layout.y === 'number'
+        ? { x: layout.x, y: layout.y }
+        : autoPosition
+
     nodes.push({
       id, // vue-flow requires string ids (in payload there is a numerical 1)
       type: 'flow-node',
-      position: {
-        x: 50 + (slot.get(id) ?? 0) * (NODE_SIZE.width + GAP.x),
-        y: 30 + depthOf(node, byId) * (NODE_SIZE.height + GAP.y),
-      },
+      position,
       data: {
         icon: meta.icon,
         title: titleForNode(node),

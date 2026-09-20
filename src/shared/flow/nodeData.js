@@ -1,9 +1,8 @@
-import { toRaw } from 'vue'
-
 import { WEEK_DAYS, WORK_HORS } from '@/shared/constants.js'
+import { clonePlain } from '@/shared/flow/utils.js'
 
 export function cloneNodeData(value) {
-  return JSON.parse(JSON.stringify(toRaw(value ?? {})))
+  return clonePlain(value ?? {})
 }
 
 export function defaultTimesForWeek() {

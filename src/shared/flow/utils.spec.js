@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { reactive } from 'vue'
 
 import {
+  clonePlain,
   collectDescendantIds,
   findNodeById,
   isConnector,
@@ -86,5 +88,22 @@ describe('patchNodeInList', () => {
   it('handles nodes without existing data object', () => {
     const next = patchNodeInList([{ id: 'a' }], 'a', { data: { comment: 'new' } })
     expect(next[0].data).toEqual({ comment: 'new' })
+  })
+})
+
+describe('clonePlain', () => {
+  it('deep-clones plain objects', () => {
+    const source = { a: 1, nested: { b: 2 } }
+    const copy = clonePlain(source)
+    expect(copy).toEqual(source)
+    expect(copy).not.toBe(source)
+    expect(copy.nested).not.toBe(source.nested)
+  })
+
+  it('clones reactive proxies', () => {
+    const source = reactive([{ id: 1, data: { x: true } }])
+    const copy = clonePlain(source)
+    expect(copy).toEqual([{ id: 1, data: { x: true } }])
+    expect(copy[0]).not.toBe(source[0])
   })
 })

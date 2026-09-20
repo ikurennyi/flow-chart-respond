@@ -1,80 +1,26 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 
-import seedNodes from '@/shared/seed/flow-nodes.json'
 import { toVueFlowGraph } from '@/shared/flow/graph'
-import { findNodeById, patchNodeInList, collectDescendantIds } from '@/shared/flow/utils'
-import { applyInsertNode } from '@/shared/flow/insertNode'
-import { fetchFlowNodes, saveFlowNodes } from '@/shared/query/flowNodesApi.js'
-import { flowNodesQueryKey } from '@/shared/query/keys.js'
+import { findNodeById } from '@/shared/flow/utils'
+import { useFlowHistoryBridge } from '@/stores/flow/historyBridge.js'
+import {
+  deleteNodeCommand,
+  insertNodeCommand,
+  updateNodeCommand,
+  updateNodeLayoutCommand,
+} from '@/stores/flow/nodeCommands.js'
+import { useFlowPersistence } from '@/stores/flow/persistence.js'
 
 export const useFlowStore = defineStore('flow', () => {
+  // --- Selection & create-node UI ---
   const selectedNodeId = ref(null)
   const insertContext = ref(null)
   const isNewNodeFormVisible = ref(false)
 
-  const queryClient = useQueryClient()
-
-  const flowNodesQuery = useQuery({
-    queryKey: flowNodesQueryKey,
-    queryFn: fetchFlowNodes,
-  })
-
-  const isFlowLoading = computed(() => flowNodesQuery.isPending.value)
-  const flowError = computed(() => flowNodesQuery.error.value)
-
-  const saveNodesMutation = useMutation({
-    mutationFn: saveFlowNodes,
-    onSuccess: (next) => {
-      queryClient.setQueryData(flowNodesQueryKey, next)
-    },
-  })
-
-  const nodes = computed(() => flowNodesQuery.data.value ?? seedNodes)
-
-  const commitNodes = (next) => {
-    queryClient.setQueryData(flowNodesQueryKey, next)
-    saveNodesMutation.mutate(next)
+  const setSelectedNodeId = (nodeId) => {
+    selectedNodeId.value = nodeId
   }
-
-  const graph = computed(() => toVueFlowGraph(nodes.value))
-
-  const getNodeById = (nodeId) => findNodeById(nodes.value, nodeId)
-
-  const insertNode = ({ title, formType, data, insertContext: context }) => {
-    if (!formType) return null
-
-    const { nodes: next, newNodeId } = applyInsertNode(
-      nodes.value,
-      { title, formType, data },
-      context ?? insertContext.value,
-    )
-    commitNodes(next)
-    closeAddNodeForm()
-    return newNodeId
-  }
-  const updateNode = (nodeId, patch) => {
-    const current = nodes.value
-    const next = patchNodeInList(current, nodeId, patch)
-    if (next === current) return
-    commitNodes(next)
-  }
-
-  const deleteNode = (nodeId) => {
-    const target = getNodeById(nodeId)
-    if (!target || target.type === 'trigger') return
-
-    const toRemove = collectDescendantIds(nodes.value, nodeId)
-    const next = nodes.value.filter((node) => !toRemove.has(String(node.id)))
-    commitNodes(next)
-
-    if (String(selectedNodeId.value) === String(nodeId)) {
-      selectedNodeId.value = null
-    }
-  }
-
-  const setSelectedNodeId = (nodeId) => (selectedNodeId.value = nodeId)
 
   const requestInsertFromEdge = (context) => {
     insertContext.value = context
@@ -91,8 +37,54 @@ export const useFlowStore = defineStore('flow', () => {
     insertContext.value = null
   }
 
-  const isNodeExist = (nodeId) => {
-    return nodes.value.some((node) => String(node.id) === nodeId)
+  // --- Server state (query + persist) ---
+  const { flowNodesQuery, nodes, persistNodes, isFlowLoading, flowError } = useFlowPersistence()
+
+  // --- Undo / redo ---
+  const { commitNodes, undo, redo, goToHistory, canUndo, canRedo, historyIndex, historyEntries } =
+    useFlowHistoryBridge({ flowNodesQuery, persistNodes, selectedNodeId })
+
+  // --- Derived graph ---
+  const graph = computed(() => toVueFlowGraph(nodes.value))
+  const getNodeById = (nodeId) => findNodeById(nodes.value, nodeId)
+  const isNodeExist = (nodeId) => nodes.value.some((node) => String(node.id) === nodeId)
+
+  // --- Node mutations ---
+  const insertNode = ({ title, formType, data, insertContext: context }) => {
+    const result = insertNodeCommand(nodes.value, {
+      title,
+      formType,
+      data,
+      insertContext: context ?? insertContext.value,
+    })
+    if (!result) return null
+
+    commitNodes(result.next, result.historyAction)
+    closeAddNodeForm()
+    return result.newNodeId
+  }
+
+  const updateNode = (nodeId, patch) => {
+    const result = updateNodeCommand(nodes.value, nodeId, patch)
+    if (!result) return
+    commitNodes(result.next, result.historyAction)
+  }
+
+  const updateNodeLayout = (nodeId, position) => {
+    const result = updateNodeLayoutCommand(nodes.value, nodeId, position)
+    if (!result) return
+    commitNodes(result.next, result.historyAction)
+  }
+
+  const deleteNode = (nodeId) => {
+    const result = deleteNodeCommand(nodes.value, nodeId)
+    if (!result) return
+
+    commitNodes(result.next, result.historyAction)
+
+    if (String(selectedNodeId.value) === result.clearedSelection) {
+      selectedNodeId.value = null
+    }
   }
 
   return {
@@ -103,10 +95,18 @@ export const useFlowStore = defineStore('flow', () => {
     insertContext,
     selectedNodeId,
     isNewNodeFormVisible,
+    canUndo,
+    canRedo,
+    historyIndex,
+    historyEntries,
+    undo,
+    redo,
+    goToHistory,
     setSelectedNodeId,
     requestInsertFromEdge,
     insertNode,
     updateNode,
+    updateNodeLayout,
     deleteNode,
     isNodeExist,
     getNodeById,

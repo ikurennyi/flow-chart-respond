@@ -74,4 +74,13 @@ describe('FlowCanvas', () => {
 
     expect(wrapper.emitted('node-click')?.[0]).toEqual([payload])
   })
+
+  it('re-emits node-drag-stop from VueFlow', async () => {
+    const payload = { node: { id: '1', position: { x: 10, y: 20 } } }
+    const wrapper = mountFlowCanvas({}, { minimalVueFlowStub: true })
+
+    await wrapper.findComponent({ name: 'VueFlowStub' }).vm.$emit('node-drag-stop', payload)
+
+    expect(wrapper.emitted('node-drag-stop')?.[0]).toEqual([payload])
+  })
 })

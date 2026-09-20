@@ -13,7 +13,7 @@ defineProps({
   focusNodeId: { type: [String, Number], default: null },
 })
 
-defineEmits(['node-click'])
+defineEmits(['node-click', 'node-drag-stop'])
 
 const nodeTypes = {
   'flow-node': markRaw(FlowNode),
@@ -30,6 +30,7 @@ const edgeTypes = { 'flow-edge': markRaw(FlowEdge) }
     :node-types="nodeTypes"
     :edge-types="edgeTypes"
     @node-click="$emit('node-click', $event)"
+    @node-drag-stop="$emit('node-drag-stop', $event)"
   >
     <FlowViewportFocus :focus-node-id="focusNodeId" />
   </VueFlow>
