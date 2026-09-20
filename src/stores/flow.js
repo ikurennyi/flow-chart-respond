@@ -8,6 +8,10 @@ export const useFlowStore = defineStore('flow', () => {
 
   const isNewNodeFormVisible = ref(false)
 
+  const getNodeById = (id) => {
+    return nodes.value.find((node) => node.id === id)
+  }
+
   const openAddNodeForm = () => {
     isNewNodeFormVisible.value = true
   }

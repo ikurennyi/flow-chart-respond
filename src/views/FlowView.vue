@@ -45,6 +45,7 @@ const onNodeDeleted = () => goToFlowsRoot()
 const nodeFormKey = computed(() =>
   isNewNodeFormVisible.value ? 'create' : String(selectedNodeId.value ?? ''),
 )
+const nodeFormMode = computed(() => (isNewNodeFormVisible.value ? 'create' : 'edit'))
 const showNodeForm = computed(
   () => isDrawerVisible.value && (isNewNodeFormVisible.value || selectedNodeId.value),
 )
@@ -67,6 +68,7 @@ const goToFlowsRoot = () => router.push({ name: ROUTES.FLOW.name })
       <NodeForm
         v-if="showNodeForm"
         :key="nodeFormKey"
+        :mode="nodeFormMode"
         @created="onNodeCreated"
         @deleted="onNodeDeleted"
       />
