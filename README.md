@@ -24,7 +24,7 @@
 
 1. The project will be available:
    1. As code, [on GitHub](https://github.com/ikurennyi/flow-chart-respond).
-   2. As a live version at Vercel (WIP)
+   2. As a live version at [Vercel](https://flow-chart-respond.vercel.app/)
 
 ## <a id="title4">Project Launch and CLI Commands</a>
 
@@ -39,7 +39,7 @@
    3. Run the command `npm install`
    4. Start the application with the command `npm run dev`
    5. The Vite local server will start. Usually (if the port is available), you can go to `http://localhost:5173/` n your browser (Vite will show the address of the running server in the terminal).
-3. The running application can be viewed [on the public Vercel page](...) (WIP).
+3. The running application can be viewed on the [public Vercel page](https://flow-chart-respond.vercel.app/).
 
 ### <a id="subtitle42">CLI:</a>
 
@@ -70,6 +70,8 @@
 10. Should we have a Description field in form? If Yes - how it has to be used?
 11. Undo/Redo
 12. Encapsulate logic in Composables
+13. Improve styling (prevent overlapping label with "+" button)
+14. Improve GitHub Actions to deploy app (to Vercel) on successful merge PRs to `main` branch.
 
 ## <a id="otherNotes">Other Notes</a>
 
