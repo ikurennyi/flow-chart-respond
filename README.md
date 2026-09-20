@@ -24,6 +24,7 @@
 
 1. The project will be available:
    1. As code, [on GitHub](https://github.com/ikurennyi/flow-chart-respond).
+      1. Check-out to `feature/undo-redo` branch locally and [run](#subtitle41) project if you want to see Undo/Redo.
    2. As a live version at [Vercel](https://flow-chart-respond.vercel.app/)
 
 ## <a id="title4">Project Launch and CLI Commands</a>
@@ -68,7 +69,7 @@
 8. Improve a11y
 9. Animations/centering should be improved
 10. Should we have a Description field in form? If Yes - how it has to be used?
-11. Undo/Redo
+11. Undo/Redo ([see](#title3) for new information)
 12. Encapsulate logic in Composables
 13. Improve styling (prevent overlapping label with "+" button)
 14. Improve GitHub Actions to deploy app (to Vercel) on successful merge PRs to `main` branch.
