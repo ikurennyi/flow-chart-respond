@@ -1,5 +1,7 @@
 import { MarkerType } from '@vue-flow/core'
 
+import { isConnector } from '@/shared/flow/utils'
+
 const NODE_SIZE = { width: 240, height: 84 }
 const GAP = { x: 64, y: 64 }
 const TERMINAL_STUB_Y = GAP.y
@@ -29,8 +31,6 @@ const EDGE_COLORS = {
 const getEdgeLabelStyle = ({ name }) => {
   return name === 'Success' ? EDGE_COLORS.success : EDGE_COLORS.error
 }
-
-const isConnector = (node) => node.type === 'dateTimeConnector'
 
 const metaFor = (node) => NODE_META[node.type] ?? FALLBACK_META
 
@@ -189,7 +189,7 @@ export const toVueFlowGraph = (rawNodes) => {
         type: 'flow-edge',
         label: parent.name,
         markerEnd: MarkerType.ArrowClosed,
-        style: { stroke: edgeLabelStyles.bg.stroke },
+        style: { stroke: DEFAULT_EDGE_STROKE },
         labelStyle: edgeLabelStyles.label,
         labelBgStyle: edgeLabelStyles.bg,
         labelBgPadding: [6, 4],

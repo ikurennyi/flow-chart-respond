@@ -44,18 +44,19 @@ const onNodeClick = (event) => {
 }
 
 watch(
-  () => route.params,
-  () => {
-    if (flowsStore.isNodeExist(route.params.nodeId)) {
-      nodeId.value = route.params.nodeId
-
-      flowsStore.setSelectedNodeId(route.params.nodeId)
-      selectItemInDrawer()
+  () => route.params.nodeId,
+  (id) => {
+    if (flowsStore.isNodeExist(id)) {
+      flowsStore.setSelectedNodeId(id)
+      isDrawerVisible.value = true
+    } else {
+      flowsStore.setSelectedNodeId(null)
+      if (!isNewNodeFormVisible.value) {
+        isDrawerVisible.value = false
+      }
     }
   },
-  {
-    immediate: true,
-  },
+  { immediate: true },
 )
 
 watch(isNewNodeFormVisible, (visible) => {
@@ -64,7 +65,7 @@ watch(isNewNodeFormVisible, (visible) => {
     if (route.params.nodeId) {
       router.push({ name: ROUTES.FLOW.name })
     }
-  } else {
+  } else if (!flowsStore.isNodeExist(route.params.nodeId)) {
     isDrawerVisible.value = false
   }
 })

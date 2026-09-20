@@ -41,7 +41,8 @@ function ensureDayEntry(day) {
 }
 
 function updateDay(day, field, value) {
-  ensureDayEntry(day)[field] = value ?? null
+  if (!value) return
+  ensureDayEntry(day)[field] = value
 }
 
 function onTimezoneChange(value) {
@@ -50,14 +51,14 @@ function onTimezoneChange(value) {
 </script>
 
 <template>
-  <div class="node-form-section bh-panel">
+  <div class="bh-panel">
     <div class="bh-panel__header">
       <el-icon class="bh-panel__header-icon" :size="28">
         <Calendar />
       </el-icon>
       <div>
-        <h3 class="node-form-section__title node-form-section__title--hero">Business Hours</h3>
-        <p class="node-form-section__hint">
+        <h3 class="bh-panel__title">Business Hours</h3>
+        <p class="bh-panel__intro">
           Allows a branch to be created based on date &amp; time conditions. Use it to set business
           hours or date range conditions.
         </p>
@@ -117,6 +118,10 @@ function onTimezoneChange(value) {
 </template>
 
 <style scoped>
+.bh-panel {
+  margin-top: 1rem;
+}
+
 .bh-panel__header {
   display: flex;
   gap: 12px;
@@ -126,6 +131,19 @@ function onTimezoneChange(value) {
 .bh-panel__header-icon {
   flex-shrink: 0;
   color: var(--el-color-warning);
+}
+
+.bh-panel__title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.bh-panel__intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--el-text-color-secondary);
 }
 
 .bh-panel__grid-head {

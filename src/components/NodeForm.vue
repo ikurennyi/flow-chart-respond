@@ -1,13 +1,14 @@
 <script setup>
-import { computed, useTemplateRef, reactive, watch } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { computed, reactive, ref, watch, onMounted, useTemplateRef } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
+import { NODE_TYPES } from '@/shared/constants.js'
+import { titleForNode } from '@/shared/flow/graph.js'
+import { cloneNodeData, defaultDataForFormType } from '@/shared/flow/nodeData.js'
+import { NODE_FORM_PANELS, panelKeyForNode } from '@/shared/flow/nodeFormPanels.js'
+import { nodeFormRules } from '@/components/node-form/formRules.js'
+import { validateNodeData } from '@/shared/flow/validateNodeData.js'
 import { useFlowStore } from '@/stores/flow'
-import { titleForNode } from '@/shared/flow/graph'
-import { cloneNodeData } from '@/shared/flow/nodeData'
-
-import { NODE_FORM_PANELS, formTypeKeyForNode } from '@/components/nodeForms'
-import { NODE_TYPES } from '@/shared/constants'
 
 const props = defineProps({
   mode: {
@@ -33,6 +34,23 @@ const isCreate = computed(() => props.mode === 'create')
 const isEdit = computed(() => props.mode === 'edit')
 
 const formRef = useTemplateRef('form-ref')
+const lastEditValidationWarned = ref(false)
+
+const canDelete = computed(() => {
+  if (!isEdit.value) return false
+  return flowsStore.getNodeById(props.nodeId)?.type !== 'trigger'
+})
+
+const formTypeKey = computed(() => {
+  if (isCreate.value) return draft.nodeType || null
+  const node = flowsStore.getNodeById(props.nodeId)
+  return panelKeyForNode(node)
+})
+
+const panelComponent = computed(() => {
+  const key = formTypeKey.value
+  return key ? NODE_FORM_PANELS[key] : null
+})
 
 const draft = reactive({
   title: '',
@@ -41,40 +59,122 @@ const draft = reactive({
 
 let typeData = reactive({})
 
-const formTypeKey = computed(() => {
-  if (isCreate.value) return draft.nodeType || null
-  const node = flowsStore.getNodeById(props.nodeId)
-  return formTypeKeyForNode(node)
+const formRules = computed(() => {
+  if (isCreate.value) {
+    return {
+      title: nodeFormRules.title,
+      nodeType: nodeFormRules.nodeType,
+    }
+  }
+  return { title: nodeFormRules.title }
 })
 
-const formComponent = computed(() => {
-  const key = formTypeKey.value
-  return key ? NODE_FORM_PANELS[key] : null
-})
+const resetTypeDataFromDefaults = (formType) => {
+  const defaults = defaultDataForFormType(formType)
+  Object.keys(typeData).forEach((k) => delete typeData[k])
+  Object.assign(typeData, cloneNodeData(defaults))
+}
+
+const syncTypeDataFromNode = (node) => {
+  const data = cloneNodeData(node?.data)
+  Object.keys(typeData).forEach((k) => delete typeData[k])
+  Object.assign(typeData, data)
+}
+
+const resetCreateDraft = () => {
+  draft.title = ''
+  draft.nodeType = ''
+  Object.keys(typeData).forEach((k) => delete typeData[k])
+}
+
+watch(
+  () => [isCreate.value, props.insertContext],
+  ([create]) => {
+    if (create) resetCreateDraft()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => draft.nodeType,
+  (formType) => {
+    if (!isCreate.value || !formType) return
+    resetTypeDataFromDefaults(formType)
+  },
+)
+
+watch(
+  () => (isEdit.value ? String(props.nodeId) : null),
+  (id) => {
+    if (!id) return
+    const node = flowsStore.getNodeById(id)
+    if (!node) return
+    draft.title = titleForNode(node)
+    draft.nodeType = panelKeyForNode(node) ?? ''
+    syncTypeDataFromNode(node)
+    lastEditValidationWarned.value = false
+  },
+  { immediate: true },
+)
+
+watch(
+  typeData,
+  () => {
+    if (!isEdit.value || !props.nodeId) return
+    const formType = formTypeKey.value
+    if (!formType) return
+
+    const { valid, message } = validateNodeData(formType, typeData)
+    if (!valid) {
+      if (!lastEditValidationWarned.value && message) {
+        ElMessage.warning(message)
+        lastEditValidationWarned.value = true
+      }
+      return
+    }
+
+    lastEditValidationWarned.value = false
+    flowsStore.updateNode(props.nodeId, { data: cloneNodeData(typeData) })
+  },
+  { deep: true },
+)
 
 function onTitleBlur() {
   if (!isEdit.value || !props.nodeId) return
   flowsStore.updateNode(props.nodeId, { name: draft.title.trim() })
 }
 
-const submitCreate = () => {
+const submitCreate = async () => {
   const form = formRef.value
   if (!form) return
 
+  try {
+    await form.validate()
+  } catch {
+    return
+  }
+
   const formType = draft.nodeType
-  // TODO: emit created node id
-  emit('created', formType)
+  const { valid, message } = validateNodeData(formType, typeData)
+  if (!valid) {
+    ElMessage.warning(message ?? 'Please fix node data before saving.')
+    return
+  }
+
+  const newId = flowsStore.insertNode({
+    title: draft.title.trim(),
+    formType,
+    data: cloneNodeData(typeData),
+    insertContext: props.insertContext,
+  })
+
+  if (newId) emit('created', newId)
 }
 
 const cancelForm = () => {
   emit('cancel')
   flowsStore.closeAddNodeForm()
 }
-
-const canDelete = computed(() => {
-  if (!isEdit.value) return false
-  // TODO: check if node is not root
-})
 
 const deleteNode = async () => {
   if (!canDelete.value) return
@@ -87,53 +187,13 @@ const deleteNode = async () => {
     flowsStore.deleteNode(props.nodeId)
     emit('deleted')
   } catch {
-    // cancelled, do nothing
+    /* cancelled */
   }
 }
 
-const resetCreateDraft = () => {
-  draft.title = ''
-  draft.nodeType = ''
-  Object.keys(typeData).forEach((k) => delete typeData[k])
-}
-
-watch(
-  () => [isCreate.value],
-  ([create]) => {
-    if (create) resetCreateDraft()
-  },
-  { immediate: true },
-)
-
-const syncTypeDataFromNode = (node) => {
-  const data = cloneNodeData(node?.data)
-  Object.keys(typeData).forEach((k) => delete typeData[k])
-  Object.assign(typeData, data)
-}
-
-watch(
-  () => (isEdit.value ? String(props.nodeId) : null),
-  (id) => {
-    if (!id) return
-    const node = flowsStore.getNodeById(id)
-    if (!node) return
-    draft.title = titleForNode(node)
-    draft.nodeType = formTypeKeyForNode(node) ?? ''
-    syncTypeDataFromNode(node)
-  },
-  { immediate: true },
-)
-
-const titleForNodeId = (id) => titleForNode(flowsStore.getNodeById(id)) || String(id)
-
-const insertContextTitles = computed(() => {
-  const ctx = props.insertContext
-  if (!ctx) return { parent: '', child: '', branch: '' }
-  return {
-    parent: titleForNodeId(ctx.parentId),
-    child: ctx.childId ? titleForNodeId(ctx.childId) : '',
-    branch: ctx.connectorId ? titleForNodeId(ctx.connectorId) : '',
-  }
+const titleRef = useTemplateRef('title-ref')
+onMounted(() => {
+  if (isCreate.value) titleRef.value?.focus?.()
 })
 </script>
 
@@ -141,19 +201,24 @@ const insertContextTitles = computed(() => {
   <div class="node-form">
     <p v-if="isCreate && insertContext" class="node-form__insert-hint">
       <template v-if="insertContext.terminal || !insertContext.childId">
-        Add after node <strong>{{ insertContextTitles.parent }}</strong>
+        Add after node <strong>{{ insertContext.parentId }}</strong>
       </template>
       <template v-else>
-        Insert between node <strong>{{ insertContextTitles.parent }}</strong> and
-        <strong>{{ insertContextTitles.child }}</strong>
+        Insert between node <strong>{{ insertContext.parentId }}</strong> and
+        <strong>{{ insertContext.childId }}</strong>
         <template v-if="insertContext.connectorId">
-          (branch <strong>{{ insertContextTitles.branch }}</strong
-          >)
+          (branch {{ insertContext.connectorId }})
         </template>
       </template>
     </p>
 
-    <el-form ref="form-ref" :model="draft" label-width="auto" label-position="top">
+    <el-form
+      ref="form-ref"
+      :model="draft"
+      :rules="formRules"
+      label-width="auto"
+      label-position="top"
+    >
       <el-form-item label="Title" prop="title">
         <el-input v-model="draft.title" ref="title-ref" @blur="onTitleBlur" />
       </el-form-item>
@@ -164,7 +229,7 @@ const insertContextTitles = computed(() => {
         </el-select>
       </el-form-item>
 
-      <component v-if="formComponent" :is="formComponent" v-model="typeData" :mode="mode" />
+      <component v-if="panelComponent" :is="panelComponent" v-model="typeData" :mode="mode" />
     </el-form>
 
     <div class="node-form__actions">
@@ -178,9 +243,3 @@ const insertContextTitles = computed(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-strong {
-  font-weight: 600;
-}
-</style>

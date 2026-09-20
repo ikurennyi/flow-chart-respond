@@ -46,7 +46,6 @@ const flowsStore = useFlowStore()
 // Repeat the geometry of the built-in step edge (borderRadius: 0 = straight angles)
 const geometry = computed(() => {
   if (props.data?.terminal) {
-    // Stub under leaf: vertical at source handle X (plus uses sourceX; target anchor may differ in X)
     const [path, labelX, labelY] = getStraightPath({
       sourceX: props.sourceX,
       sourceY: props.sourceY,
